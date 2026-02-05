@@ -22,16 +22,18 @@ if not PIPEFY_TOKEN:
 
 print("🔐 Token Pipefy carregado com sucesso")
 
-PIPE_ID = 306960509
-FIELD_RAZAO_SOCIAL = "raz_o_social"
-FIELD_CNPJ = "cnpj"
-FIELD_PATRIMONIO = "patrim_nio_l_quido"
+PIPE_ID = os.getenv("PIPE_ID")
+FIELD_RAZAO_SOCIAL = os.getenv("PIPE_FIELD_RAZAO")
+FIELD_CNPJ = os.getenv("PIPE_FIELD_CNPJ")
+FIELD_PATRIMONIO = os.getenv("PIPE_FIELD_PATRIMONIO")
+PIPEFY_API_URL = os.getenv("API_URL", "https://api.pipefy.com/graphql")
+ZIP_URL = os.getenv("ZIP_URL", "https://dados.cvm.gov.br/dados/FI/CAD/DADOS/registro_fundo_classe.zip")
+CSV_NAME= os.getenv("CSV_NAME", "registro_fundo.csv")
 
 # =========================
 # FUNÇÕES
 # =========================
 def criar_card_pipefy(razao_social, cnpj, patrimonio):
-    url = "https://api.pipefy.com/graphql"
 
     headers = {
         "Authorization": f"Bearer {PIPEFY_TOKEN}",
@@ -59,16 +61,15 @@ def criar_card_pipefy(razao_social, cnpj, patrimonio):
         }
     }
 
-    response = requests.post(url, json=payload, headers=headers)
+    response = requests.post(PIPEFY_API_URL, json=payload, headers=headers)
     return response.json()
 
 # =========================
 # ETAPA 1 – DOWNLOAD ZIP
 # =========================
-url_zip = "https://dados.cvm.gov.br/dados/FI/CAD/DADOS/registro_fundo_classe.zip"
 
 print("📦 Indo buscar o arquivo na CVM...")
-resposta = requests.get(url_zip)
+resposta = requests.get(ZIP_URL)
 
 if resposta.status_code != 200:
     raise Exception("Erro ao baixar arquivo da CVM")
@@ -82,7 +83,7 @@ print("📂 Lendo CSV direto do ZIP")
 
 zip_em_memoria = zipfile.ZipFile(io.BytesIO(resposta.content))
 
-with zip_em_memoria.open("registro_fundo.csv") as arquivo_csv:
+with zip_em_memoria.open(CSV_NAME) as arquivo_csv:
     df = pd.read_csv(arquivo_csv, sep=";", encoding="latin1")
 
 print(f"📊 Total de linhas carregadas: {len(df)}")
