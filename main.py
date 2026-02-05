@@ -7,6 +7,8 @@ import zipfile
 import io
 import pandas as pd
 from dotenv import load_dotenv
+import json
+from datetime import datetime
 
 print("🚀 Projeto Pipefy Catálise iniciado com sucesso!")
 
@@ -27,8 +29,11 @@ FIELD_RAZAO_SOCIAL = os.getenv("PIPE_FIELD_RAZAO")
 FIELD_CNPJ = os.getenv("PIPE_FIELD_CNPJ")
 FIELD_PATRIMONIO = os.getenv("PIPE_FIELD_PATRIMONIO")
 PIPEFY_API_URL = os.getenv("API_URL", "https://api.pipefy.com/graphql")
-ZIP_URL = os.getenv("ZIP_URL", "https://dados.cvm.gov.br/dados/FI/CAD/DADOS/registro_fundo_classe.zip")
-CSV_NAME= os.getenv("CSV_NAME", "registro_fundo.csv")
+ZIP_URL = os.getenv(
+    "ZIP_URL", "https://dados.cvm.gov.br/dados/FI/CAD/DADOS/registro_fundo_classe.zip"
+)
+CSV_NAME = os.getenv("CSV_NAME", "registro_fundo.csv")
+
 
 # =========================
 # FUNÇÕES
@@ -37,7 +42,7 @@ def criar_card_pipefy(razao_social, cnpj, patrimonio):
 
     headers = {
         "Authorization": f"Bearer {PIPEFY_TOKEN}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     payload = {
@@ -56,13 +61,14 @@ def criar_card_pipefy(razao_social, cnpj, patrimonio):
             "fields": [
                 {"field_id": FIELD_RAZAO_SOCIAL, "field_value": razao_social},
                 {"field_id": FIELD_CNPJ, "field_value": str(cnpj)},
-                {"field_id": FIELD_PATRIMONIO, "field_value": str(patrimonio)}
-            ]
-        }
+                {"field_id": FIELD_PATRIMONIO, "field_value": str(patrimonio)},
+            ],
+        },
     }
 
     response = requests.post(PIPEFY_API_URL, json=payload, headers=headers)
     return response.json()
+
 
 # =========================
 # ETAPA 1 – DOWNLOAD ZIP
@@ -92,9 +98,9 @@ print(f"📊 Total de linhas carregadas: {len(df)}")
 # ETAPA 3 – FILTROS
 # =========================
 df_filtrado = df[
-    (df["Tipo_Fundo"] == "FIDC") &
-    (df["Situacao"] == "Em Funcionamento Normal") &
-    (df["Gestor"] == "CATÁLISE INVESTIMENTOS LTDA.")
+    (df["Tipo_Fundo"] == "FIDC")
+    & (df["Situacao"] == "Em Funcionamento Normal")
+    & (df["Gestor"] == "CATÁLISE INVESTIMENTOS LTDA.")
 ]
 
 print(f"🎯 Total de fundos após filtro: {len(df_filtrado)}")
@@ -102,17 +108,17 @@ print(f"🎯 Total de fundos após filtro: {len(df_filtrado)}")
 # =========================
 # ETAPA 4 – TESTE 1 CARD
 # =========================
-#print("\n🧪 TESTE – Criando 1 card no Pipefy")
+# print("\n🧪 TESTE – Criando 1 card no Pipefy")
 
-#linha = df_filtrado.iloc[0]
+# linha = df_filtrado.iloc[0]
 
-#resultado = criar_card_pipefy(
+# resultado = criar_card_pipefy(
 #    razao_social=linha["Denominacao_Social"],
 #    cnpj=linha["CNPJ_Fundo"],
 #    patrimonio=linha["Patrimonio_Liquido"]
-#)
+# )
 
-#print(resultado)
+# print(resultado)
 
 print("\n🚀 ETAPA 4 – Criando TODOS os cards no Pipefy")
 
@@ -124,36 +130,37 @@ for _, linha in df_filtrado.iterrows():
     resultado = criar_card_pipefy(
         razao_social=linha["Denominacao_Social"],
         cnpj=linha["CNPJ_Fundo"],
-        patrimonio=linha["Patrimonio_Liquido"]
+        patrimonio=linha["Patrimonio_Liquido"],
     )
 
     if "errors" in resultado:
         erro += 1
-        detalhes.append({
-            "fundo": linha["Denominacao_Social"],
-            "status": "erro",
-            "mensagem": resultado["errors"]
-        })
+        detalhes.append(
+            {
+                "fundo": linha["Denominacao_Social"],
+                "status": "erro",
+                "mensagem": resultado["errors"],
+            }
+        )
         print("❌ Erro:", linha["Denominacao_Social"])
     else:
         sucesso += 1
         card_id = resultado["data"]["createCard"]["card"]["id"]
-        detalhes.append({
-            "fundo": linha["Denominacao_Social"],
-            "status": "sucesso",
-            "card_id": card_id
-        })
+        detalhes.append(
+            {
+                "fundo": linha["Denominacao_Social"],
+                "status": "sucesso",
+                "card_id": card_id,
+            }
+        )
         print("✅ Card criado:", linha["Denominacao_Social"], "| ID:", card_id)
-
-import json
-from datetime import datetime
 
 log_execucao = {
     "data_execucao": datetime.now().isoformat(),
     "total_fundos": len(df_filtrado),
     "cards_criados": sucesso,
     "erros": erro,
-    "detalhes": detalhes
+    "detalhes": detalhes,
 }
 
 os.makedirs("logs", exist_ok=True)
